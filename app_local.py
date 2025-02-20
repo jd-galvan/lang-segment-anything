@@ -43,7 +43,7 @@ def final_process(original_image_path, processed_mask):
     print(type(new_image))
     print(new_image)
 
-    return Image.fromarray(new_image)
+    return new_image
 
 with gr.Blocks(title="LangSAM Local") as blocks:
     # Estado para almacenar la máscara de detección (array numpy)
@@ -52,8 +52,6 @@ with gr.Blocks(title="LangSAM Local") as blocks:
     with gr.Row():
         image_input = gr.Image(type="filepath", label="Input Image")
         output_image = gr.Image(type="pil", label="Detected Faces Mask")
-    
-    text_prompt = gr.Textbox(lines=1, label="Text Prompt")
     
     # Botones para las dos primeras etapas
     submit_btn = gr.Button("Run Face Detection")

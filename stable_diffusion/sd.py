@@ -19,10 +19,22 @@ class SD:
     def predict(
         self,
         image_path,
-        mask_path
+        mask_image
     ):
+
+        # if isinstance(image_input, str):
+        #     return Image.open(image_input).convert("RGB")
+        # # Si ya es un objeto PIL, simplemente se convierte a RGB.
+        # elif isinstance(image_input, Image.Image):
+        #     return image_input.convert("RGB")
+        # else:
+        #     raise ValueError("Tipo de entrada no soportado: {}".format(type(image_input)))
+        print("RUTAS")
+        print(image_path)
+        print(mask_image)
+
         init_image = Image.open(image_path).convert("RGB")
-        mask_image = Image.open(mask_path).convert("RGB")
+        mask_image = mask_image.convert("RGB")
 
         new_image = self.pipeline(prompt="Impaint the image.", image=init_image, mask_image=mask_image).images[0]
 
