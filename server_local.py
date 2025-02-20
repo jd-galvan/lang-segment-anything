@@ -3,10 +3,11 @@ import numpy as np
 import cv2
 from PIL import Image
 from lang_sam.lang_sam import LangSAM
-from lang_sam.utils import draw_image
+from stable_diffusion.sd import SD
 from opencv.opencv import detect_faces as d_faces
 
 model = LangSAM(sam_type="sam2.1_hiera_small", device="cuda")
+sd = SD()
 
 def detect_faces(image_path: str):
     """
@@ -83,3 +84,7 @@ def generate_mask(sam_type: str, image_path: str):
     dilated_mask = cv2.dilate(binary_mask, kernel, iterations=1)
     
     return dilated_mask
+
+def generate_impaint(image_path, mask_path):
+    new_image = sd.predict(image_path, mask_path)
+    return new_image
