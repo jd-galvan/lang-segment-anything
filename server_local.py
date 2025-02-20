@@ -1,9 +1,10 @@
 from io import BytesIO
 import numpy as np
+import cv2
 from PIL import Image
 from lang_sam.lang_sam import LangSAM
 from lang_sam.utils import draw_image
-from opencv.opencv import detect_faces
+from opencv.opencv import detect_faces as d_faces
 
 model = LangSAM(sam_type="sam2.1_hiera_small", device="cuda")
 
@@ -18,31 +19,22 @@ def detect_faces(image_path: str):
       - Una imagen PIL con los resultados dibujados.
     """
 
-    try:
-        image_pil = Image.open(image_path).convert("RGB")
-    except Exception as e:
-        raise ValueError(f"Error al abrir la imagen: {e}")
-
     # Realiza la predicción.
-    results = detect_faces(image_path=image_path)
+    results = d_faces(image_path)
 
-    output_image = Image.fromarray(np.uint8(results)).convert("RGB")
-    return output_image
+    return results
 
 
-def predict_local(sam_type: str, box_threshold: float, text_threshold: float, image_path: str, text_prompt: str) -> Image.Image:
+def generate_mask(sam_type: str, image_path: str):
     """
     Función que realiza la predicción usando el modelo LangSAM de forma local.
     
     Parámetros:
       - sam_type: Tipo de modelo SAM a utilizar.
-      - box_threshold: Umbral para detección de cajas.
-      - text_threshold: Umbral para detección de texto.
       - image_path: Ruta al archivo de imagen de entrada.
-      - text_prompt: Texto de entrada para la predicción.
       
     Retorna:
-      - Una imagen PIL con los resultados dibujados.
+      - Una máscara dilatada en formato de imagen (array de uint8).
     """
     # Si se solicita otro modelo, se actualiza el modelo SAM.
     if sam_type != model.sam_type:
@@ -57,25 +49,37 @@ def predict_local(sam_type: str, box_threshold: float, text_threshold: float, im
     # Realiza la predicción.
     results = model.predict(
         images_pil=[image_pil],
-        texts_prompt=[text_prompt],
-        box_threshold=box_threshold,
-        text_threshold=text_threshold,
+        texts_prompt=["photo damage"]  # Prompt para que detecte los daños de las fotos
     )
     results = results[0]
 
-    # Si no se detectaron máscaras, retorna la imagen original.
-    if not len(results["masks"]):
-        print("No masks detected. Returning original image.")
-        return image_pil
+    # Verifica que se haya detectado alguna máscara
+    if "masks" not in results or len(results["masks"]) == 0:
+        raise ValueError("No se detectaron máscaras en la imagen.")
 
-    # Dibuja los resultados sobre la imagen.
-    image_array = np.asarray(image_pil)
-    output_image = draw_image(
-        image_array,
-        results["masks"],
-        results["boxes"],
-        results["scores"],
-        results["labels"],
-    )
-    output_image = Image.fromarray(np.uint8(output_image)).convert("RGB")
-    return output_image
+    # Extrae la primera máscara detectada
+    pred_mask = np.array(results["masks"][0])
+    
+    # Asegúrate de que la máscara sea 2D (alto, ancho)
+    if pred_mask.ndim != 2:
+        raise ValueError("La máscara detectada no tiene el formato esperado (2D).")
+    
+    h, w = pred_mask.shape
+    # Define el color con canal alfa (RGBA), normalizado entre 0 y 1
+    color = np.array([30/255, 144/255, 255/255, 0.6])
+    
+    # Crea una imagen de la máscara con el color definido
+    mask_image = pred_mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+    
+    # Crear una imagen binaria basada en la máscara usando el canal alfa
+    mask_alpha = mask_image[:, :, 3]  # Canal alfa
+    binary_mask = np.where(mask_alpha > 0, 255, 0).astype('uint8')
+
+    # Define un kernel para la dilatación
+    kernel_size = 30  # Ajusta este tamaño para mayor o menor grosor
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
+    
+    # Aplica la dilatación
+    dilated_mask = cv2.dilate(binary_mask, kernel, iterations=1)
+    
+    return dilated_mask
